@@ -39,7 +39,7 @@
         </developer>
     </developers>
     <modules>
-        <module>mybatis-plugin-encryption-decryption</module>
+        <module>mybatis-plugin-crypto</module>
         <module>mybatis-plugin-test</module>
     </modules>
 
@@ -50,6 +50,7 @@
 
         <junit.jupiter.version>5.10.1</junit.jupiter.version>
         <mybatis-spring-boot.version>2.3.2</mybatis-spring-boot.version>
+        <spring-boot.version>2.7.18</spring-boot.version>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <flatten-maven-plugin.version>1.2.7</flatten-maven-plugin.version>
@@ -63,8 +64,22 @@
         <dependencies>
             <dependency>
                 <groupId>org.mybatis.spring.boot</groupId>
-                <artifactId>mybatis-spring-boot-starter</artifactId>
+                <artifactId>mybatis-spring-boot</artifactId>
                 <version>${mybatis-spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>dev.taie.tool</groupId>
+                <artifactId>mybatis-plugin-crypto</artifactId>
+                <version>${revision}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
