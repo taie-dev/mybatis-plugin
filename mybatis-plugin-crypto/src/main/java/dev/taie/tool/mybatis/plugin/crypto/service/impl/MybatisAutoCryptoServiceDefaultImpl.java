@@ -5,12 +5,9 @@ import dev.taie.tool.mybatis.plugin.crypto.annotation.CryptoField;
 import dev.taie.tool.mybatis.plugin.crypto.config.CryptoProperties;
 import dev.taie.tool.mybatis.plugin.crypto.exception.CryptoException;
 import dev.taie.tool.mybatis.plugin.crypto.service.MybatisAutoCryptoService;
+import dev.taie.tool.mybatis.plugin.crypto.util.AesUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.crypto.Cipher;
-import javax.crypto.spec.SecretKeySpec;
-import java.util.Random;
 
 /**
  * @date 2025/1/6
@@ -19,8 +16,6 @@ public class MybatisAutoCryptoServiceDefaultImpl implements MybatisAutoCryptoSer
     private static final Logger log = LoggerFactory.getLogger(MybatisAutoCryptoServiceDefaultImpl.class);
 
     private final CryptoProperties cryptoProperties;
-
-    private static final String ALGORITHM = "AES";
 
     public MybatisAutoCryptoServiceDefaultImpl(CryptoProperties cryptoProperties) {
         this.cryptoProperties = cryptoProperties;
@@ -72,46 +67,15 @@ public class MybatisAutoCryptoServiceDefaultImpl implements MybatisAutoCryptoSer
     }
 
     private String encrypt(String plainText) throws Exception {
-        SecretKeySpec keySpec = new SecretKeySpec(cryptoProperties.getKey().getBytes(), ALGORITHM);
-        Cipher cipher = Cipher.getInstance(ALGORITHM);
-        cipher.init(Cipher.ENCRYPT_MODE, keySpec);
-        return bytesToHex(cipher.doFinal(plainText.getBytes()));
+        return AesUtils.encrypt(plainText, cryptoProperties.getKey());
     }
 
     private String decrypt(String encryptedText) throws Exception {
-        SecretKeySpec keySpec = new SecretKeySpec(cryptoProperties.getKey().getBytes(), ALGORITHM);
-        Cipher cipher = Cipher.getInstance(ALGORITHM);
-        cipher.init(Cipher.DECRYPT_MODE, keySpec);
-        return new String(cipher.doFinal(hexToBytes(encryptedText)));
-    }
-
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder result = new StringBuilder();
-        for (byte b : bytes) {
-            result.append(String.format("%02x", b));
-        }
-        return result.toString();
-    }
-
-    private static byte[] hexToBytes(String hex) {
-        int len = hex.length();
-        byte[] bytes = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            bytes[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4) + Character.digit(hex.charAt(i + 1), 16));
-        }
-        return bytes;
+        return AesUtils.decrypt(encryptedText, cryptoProperties.getKey());
     }
 
     public static String getKey() {
-        int length = 16;
-        String characters = "0123456789";
-        StringBuilder sb = new StringBuilder(length);
-        Random random = new Random();
-        for (int i = 0; i < length; i++) {
-            int index = random.nextInt(characters.length());
-            sb.append(characters.charAt(index));
-        }
-        return sb.toString();
+        return AesUtils.getKey();
     }
 
     /**
