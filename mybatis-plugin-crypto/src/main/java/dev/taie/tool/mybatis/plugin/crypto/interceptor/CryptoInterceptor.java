@@ -1,6 +1,7 @@
 package dev.taie.tool.mybatis.plugin.crypto.interceptor;
 
 import dev.taie.tool.mybatis.plugin.crypto.annotation.CryptoField;
+import dev.taie.tool.mybatis.plugin.crypto.config.CryptoProperties;
 import dev.taie.tool.mybatis.plugin.crypto.service.MybatisAutoCryptoService;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.binding.MapperMethod;
@@ -37,12 +38,17 @@ public class CryptoInterceptor implements Interceptor {
 
     private static final Map<String, Set<String>> MAPPER_METHOD_CACHE = new ConcurrentHashMap<>();
 
+    private static final Map<Class<?>, Boolean> CLASS_CACHE = new ConcurrentHashMap<>();
+
     private static final Pattern PATTERN = Pattern.compile("^param\\d+$");
 
     private final MybatisAutoCryptoService cryptoService;
 
-    public CryptoInterceptor(MybatisAutoCryptoService cryptoService) {
+    private final CryptoProperties cryptoProperties;
+
+    public CryptoInterceptor(MybatisAutoCryptoService cryptoService, CryptoProperties cryptoProperties) {
         this.cryptoService = cryptoService;
+        this.cryptoProperties = cryptoProperties;
     }
 
     @Override
@@ -89,8 +95,11 @@ public class CryptoInterceptor implements Interceptor {
         if (parameterObject instanceof MapperMethod.ParamMap) {
             @SuppressWarnings("unchecked")
             MapperMethod.ParamMap<Object> paramMap = (MapperMethod.ParamMap<Object>) parameterObject;
-            for (String key : MAPPER_METHOD_CACHE.get(mappedId)) {
-                handleCryptoFields(paramMap.get(key), true);
+            Set<String> paramNameSet = MAPPER_METHOD_CACHE.get(mappedId);
+            if (paramNameSet != null) {
+                for (String key : paramNameSet) {
+                    handleCryptoFields(paramMap.get(key), true);
+                }
             }
         } else {
             // 处理单个参数
@@ -132,44 +141,45 @@ public class CryptoInterceptor implements Interceptor {
 
     }
 
-    private void handleCryptoFields(Object obj, boolean isEncrypt) throws Exception {
-        if (obj == null) return;
+    private Boolean handleCryptoFields(Object obj, boolean isEncrypt) throws Exception {
+        if (obj == null) return null;
 
         // 处理集合类型
         if (obj instanceof Collection) {
             for (Object item : (Collection<?>) obj) {
                 handleCryptoFields(item, isEncrypt);
             }
-            return;
-        }
-
-        // 处理Map类型
-        if (obj instanceof Map) {
+            return null;
+        } else if (obj instanceof Map) {
             for (Object value : ((Map<?, ?>) obj).values()) {
                 handleCryptoFields(value, isEncrypt);
             }
-            return;
+            return null;
+        } else if (obj.getClass().isArray()) {
+            for (Object item : (Object[]) obj) {
+                handleCryptoFields(item, isEncrypt);
+            }
+            return null;
         }
 
         Class<?> clazz = obj.getClass();
+        if (Boolean.FALSE.equals(CLASS_CACHE.get(clazz))) {
+            return Boolean.FALSE;
+        }
         // 如果是基本类型或包装类型，直接返回
-        if (clazz.isPrimitive() || clazz.getName().startsWith("java.lang")) {
-            return;
+        if (!isProjectClass(clazz)) {
+            return Boolean.FALSE;
         }
-
         // 获取所有字段（包括父类的字段）
-        List<Field> fields = new ArrayList<>();
-        while (clazz != null && clazz != Object.class) {
-            fields.addAll(Arrays.asList(clazz.getDeclaredFields()));
-            clazz = clazz.getSuperclass();
-        }
-
+        List<Field> fields = getAllFieldsList(clazz);
+        Boolean flag = false;
         for (Field field : fields) {
             field.setAccessible(true);
             // 处理带有@CryptoField注解的字段
             CryptoField cryptoField = field.getAnnotation(CryptoField.class);
             Object value = field.get(obj);
             if (cryptoField != null) {
+                flag = true;
                 if (value instanceof String) {
                     String strValue = (String) value;
                     if (isEncrypt) {
@@ -180,11 +190,35 @@ public class CryptoInterceptor implements Interceptor {
                 }
             } else {
                 // 递归处理复杂对象
-                if (value != null && !field.getType().isPrimitive() && !field.getType().getName().startsWith("java.lang")) {
-                    handleCryptoFields(value, isEncrypt);
+                if (value != null && isProjectClass(field.getType())) {
+                    flag = handleCryptoFields(value, isEncrypt);
                 }
             }
         }
+        if (flag != null) {
+            CLASS_CACHE.putIfAbsent(clazz, flag);
+        }
+        return flag;
     }
 
+    private List<Field> getAllFieldsList(final Class<?> cls) {
+        final List<Field> allFields = new ArrayList<>();
+        Class<?> currentClass = cls;
+        while (currentClass != null) {
+            final Field[] declaredFields = currentClass.getDeclaredFields();
+            Collections.addAll(allFields, declaredFields);
+            currentClass = currentClass.getSuperclass();
+        }
+        return allFields;
+    }
+
+    private boolean isProjectClass(Class<?> clazz) {
+        String canonicalName = clazz.getCanonicalName();
+        String packageName = cryptoProperties.getPackageName();
+        if (packageName == null) {
+            log.error("请配置mybatis.plugin.crypto.packageName");
+            System.exit(1);
+        }
+        return canonicalName.startsWith(packageName);
+    }
 }

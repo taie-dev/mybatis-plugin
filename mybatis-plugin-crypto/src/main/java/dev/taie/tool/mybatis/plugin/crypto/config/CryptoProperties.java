@@ -11,4 +11,6 @@ public class CryptoProperties {
     public static final String CONF_PREFIX = "mybatis.plugin.crypto";
 
     private String key;
+
+    private String packageName;
 }

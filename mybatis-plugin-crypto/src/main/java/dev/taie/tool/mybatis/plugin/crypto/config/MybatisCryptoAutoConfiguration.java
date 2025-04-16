@@ -19,7 +19,7 @@ public class MybatisCryptoAutoConfiguration {
     }
 
     @Bean
-    public CryptoInterceptor cryptoInterceptor(MybatisAutoCryptoService mybatisAutoCryptoService) {
-        return new CryptoInterceptor(mybatisAutoCryptoService);
+    public CryptoInterceptor cryptoInterceptor(MybatisAutoCryptoService mybatisAutoCryptoService, CryptoProperties cryptoProperties) {
+        return new CryptoInterceptor(mybatisAutoCryptoService, cryptoProperties);
     }
 }
