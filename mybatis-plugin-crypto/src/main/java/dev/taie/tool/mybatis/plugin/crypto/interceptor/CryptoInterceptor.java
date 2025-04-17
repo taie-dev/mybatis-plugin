@@ -56,7 +56,11 @@ public class CryptoInterceptor implements Interceptor {
         if (invocation.getTarget() instanceof ResultSetHandler) {
             return handleResultSet(invocation);
         } else if (invocation.getTarget() instanceof ParameterHandler) {
-            handleParameter(invocation);
+            try {
+                handleParameter(invocation);
+            } catch (Throwable e) {
+                log.error(e.getMessage(), e);
+            }
             return invocation.proceed();
         }
         return invocation.proceed();
@@ -64,13 +68,17 @@ public class CryptoInterceptor implements Interceptor {
 
     private Object handleResultSet(Invocation invocation) throws Throwable {
         Object result = invocation.proceed();
-        if (result instanceof List) {
-            List<?> list = (List<?>) result;
-            for (Object obj : list) {
-                handleCryptoFields(obj, false);
+        try {
+            if (result instanceof List) {
+                List<?> list = (List<?>) result;
+                for (Object obj : list) {
+                    handleCryptoFields(obj, false);
+                }
+            } else {
+                handleCryptoFields(result, false);
             }
-        } else {
-            handleCryptoFields(result, false);
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
         }
         return result;
     }
@@ -97,8 +105,14 @@ public class CryptoInterceptor implements Interceptor {
             MapperMethod.ParamMap<Object> paramMap = (MapperMethod.ParamMap<Object>) parameterObject;
             Set<String> paramNameSet = MAPPER_METHOD_CACHE.get(mappedId);
             if (paramNameSet != null) {
-                for (String key : paramNameSet) {
-                    handleCryptoFields(paramMap.get(key), true);
+                int size = paramNameSet.size();
+                if (size == 1) {
+                    Map.Entry<String, Object> entry = paramMap.entrySet().iterator().next();
+                    handleCryptoFields(entry.getValue(), true);
+                } else if (size > 1) {
+                    for (String key : paramNameSet) {
+                        handleCryptoFields(paramMap.get(key), true);
+                    }
                 }
             }
         } else {
